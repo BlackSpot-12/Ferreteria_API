@@ -3,6 +3,9 @@ from contextlib import asynccontextmanager
 from config.db import crear_db_y_tablas
 from routers.auth_router import router as auth_router
 from routers.usuario_router import router as usuario_router
+from routers.categoria_router import router as categoria_router
+from routers.ubicacion_router import router as ubicacion_router
+
 import models.usuario
 import models.categoria
 import models.ubicacion
@@ -20,3 +23,5 @@ app = FastAPI(title="API Ferretería", lifespan=lifespan)
 
 app.include_router(auth_router, tags=["Autenticación"])
 app.include_router(usuario_router, tags=["Usuarios"])
+app.include_router(categoria_router)
+app.include_router(ubicacion_router)
