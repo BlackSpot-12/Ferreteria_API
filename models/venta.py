@@ -12,6 +12,7 @@ class TipoCliente(str, enum.Enum):
 
 class Venta(SQLModel, table=True):
     __tablename__ = "ventas"
+
     id_venta: Optional[int] = Field(default=None, primary_key=True)
     usuario_id: int = Field(nullable=False, foreign_key="usuarios.id")
     fecha_hora: datetime = Field(
@@ -23,19 +24,23 @@ class Venta(SQLModel, table=True):
 
 class DetalleVenta(SQLModel, table=True):
     __tablename__ = "detalles_ventas"
+
     id_detalle_venta: Optional[int] = Field(default=None, primary_key=True)
     venta_id: int = Field(nullable=False, foreign_key="ventas.id_venta")
     producto_id: int = Field(
-        nullable=False, foreign_key="productos.id_producto")
+        nullable=False, foreign_key="productos.id_producto"
+    )
     cantidad: int = Field(nullable=False)
     precio_unitario: Decimal = Field(
-        nullable=False, max_digits=10, decimal_places=2)
+        nullable=False, max_digits=10, decimal_places=2
+    )
     descuento: Decimal = Field(default=0, max_digits=10, decimal_places=2)
     subtotal: Decimal = Field(nullable=False, max_digits=10, decimal_places=2)
 
 
 class DatosFacturacion(SQLModel, table=True):
     __tablename__ = "datos_facturacion"
+
     id_facturacion: Optional[int] = Field(default=None, primary_key=True)
     venta_id: int = Field(nullable=False, foreign_key="ventas.id_venta")
     tipo_cliente: TipoCliente = Field(nullable=False)
