@@ -1,50 +1,37 @@
-from sqlmodel import SQLModel, Field
 from typing import Optional
-from datetime import datetime, timezone
+
 from pydantic import EmailStr
+from sqlmodel import Field, SQLModel
 
 
-class RolBase(SQLModel):
-    nombre: str = Field(nullable=False, max_length=50, unique=True)
+class Usuario(SQLModel, table=True):
+    __tablename__ = "Usuario"
+    id_usuario: Optional[int] = Field(default=None, primary_key=True)
+    Nombres: str = Field(nullable=False, max_length=100)
+    apellidos: str = Field(nullable=False, max_length=100)
+    correo: EmailStr = Field(nullable=False, unique=True, max_length=150)
+    password_hash: str = Field(nullable=False, max_length=255)
+    rol_id: int = Field(nullable=False, foreign_key="rol.id_rol")
 
 
-class Rol(RolBase, table=True):
-    __tablename__ = "roles"
-    id: Optional[int] = Field(default=None, primary_key=True)
-
-
-class UsuarioBase(SQLModel):
-    username: str = Field(nullable=False, max_length=50, unique=True)
-    nombre: str = Field(nullable=False, max_length=255)
-    apellido: str = Field(nullable=False, max_length=255)
-    telefono: str = Field(nullable=False, max_length=15)
-    correo: EmailStr = Field(nullable=False, unique=True, max_length=255)
-    id_rol: int = Field(nullable=False, foreign_key="roles.id")
-
-
-class Usuario(UsuarioBase, table=True):
-    __tablename__ = "usuarios"
-    id: Optional[int] = Field(default=None, primary_key=True)
+class UsuarioCreate(SQLModel):
+    Nombres: str = Field(nullable=False, max_length=100)
+    apellidos: str = Field(nullable=False, max_length=100)
+    correo: EmailStr = Field(nullable=False, max_length=150)
     password: str = Field(nullable=False, max_length=255)
-    # Aquí aplicamos la corrección de la zona horaria
-    created_at: Optional[datetime] = Field(
-        default_factory=lambda: datetime.now(timezone.utc))
-    estado: bool = Field(default=True)
-
-
-class UsuarioCreate(UsuarioBase):
-    password: str
+    rol_id: int = Field(nullable=False)
 
 
 class UsuarioRegistroCliente(SQLModel):
-    username: str
-    password: str
-    nombre: str
-    apellido: str
-    telefono: str
+    Nombres: str = Field(nullable=False, max_length=100)
+    apellidos: str = Field(nullable=False, max_length=100)
+    correo: EmailStr = Field(nullable=False, max_length=150)
+    password: str = Field(nullable=False, max_length=255)
+
+
+class UsuarioResponse(SQLModel):
+    id_usuario: int
+    Nombres: str
+    apellidos: str
     correo: EmailStr
-
-
-class UsuarioResponse(UsuarioBase):
-    id: int
-    estado: bool
+    rol_id: int

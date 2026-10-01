@@ -37,14 +37,14 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     )
     try:
         payload = decode_access_token(token)
-        id: Optional[int] = payload.get("id")
-        username: Optional[str] = payload.get("username")
-        id_rol: Optional[int] = payload.get("id_rol")
+        id_usuario: Optional[int] = payload.get("id")
+        username: Optional[str] = payload.get("username") or payload.get("correo")
+        id_rol: Optional[int] = payload.get("id_rol") or payload.get("rol_id")
 
         if username is None:
             raise credencial_exception
 
-        return {"id": id, "username": username, "id_rol": id_rol}
+        return {"id": id_usuario, "username": username, "id_rol": id_rol, "rol_id": id_rol}
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

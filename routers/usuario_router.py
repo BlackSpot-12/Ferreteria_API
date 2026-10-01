@@ -1,31 +1,25 @@
-from fastapi import APIRouter, HTTPException, status
+﻿from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
-from config.session_Dependencia import SessionDeDependencia
+
 from config.segurity_Dependencia import Token_Dependencia
-from models.usuario import Usuario, UsuarioCreate, UsuarioRegistroCliente, UsuarioResponse
+from config.session_Dependencia import SessionDeDependencia
 from lib.pwd import get_password_hash
+from models.usuario import Usuario, UsuarioCreate, UsuarioRegistroCliente, UsuarioResponse
 
 router = APIRouter()
 
 
 @router.post("/usuarios/registro", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_cliente(datos_cliente: UsuarioRegistroCliente, session: SessionDeDependencia):
-    if session.exec(select(Usuario).where(Usuario.username == datos_cliente.username)).first():
-        raise HTTPException(
-            status_code=400, detail="El nombre de usuario ya existe")
-
     if session.exec(select(Usuario).where(Usuario.correo == datos_cliente.correo)).first():
-        raise HTTPException(
-            status_code=400, detail="El correo ya está registrado")
+        raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
     nuevo_cliente = Usuario(
-        username=datos_cliente.username,
-        password=get_password_hash(datos_cliente.password),
-        nombre=datos_cliente.nombre,
-        apellido=datos_cliente.apellido,
-        telefono=datos_cliente.telefono,
+        Nombres=datos_cliente.Nombres,
+        apellidos=datos_cliente.apellidos,
         correo=datos_cliente.correo,
-        id_rol=3
+        password_hash=get_password_hash(datos_cliente.password),
+        rol_id=3,
     )
     session.add(nuevo_cliente)
     session.commit()
@@ -35,22 +29,21 @@ async def registrar_cliente(datos_cliente: UsuarioRegistroCliente, session: Sess
 
 @router.post("/usuarios", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
 async def crear_empleado_admin(datos_usuario: UsuarioCreate, session: SessionDeDependencia, token: Token_Dependencia):
-    if token['id_rol'] != 1:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Solo los propietarios pueden crear empleados")
-
-    if session.exec(select(Usuario).where(Usuario.username == datos_usuario.username)).first():
+    if token["id_rol"] != 1:
         raise HTTPException(
-            status_code=400, detail="El nombre de usuario ya existe")
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los propietarios pueden crear empleados",
+        )
+
+    if session.exec(select(Usuario).where(Usuario.correo == datos_usuario.correo)).first():
+        raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
     nuevo_usuario = Usuario(
-        username=datos_usuario.username,
-        password=get_password_hash(datos_usuario.password),
-        nombre=datos_usuario.nombre,
-        apellido=datos_usuario.apellido,
-        telefono=datos_usuario.telefono,
+        Nombres=datos_usuario.Nombres,
+        apellidos=datos_usuario.apellidos,
         correo=datos_usuario.correo,
-        id_rol=datos_usuario.id_rol
+        password_hash=get_password_hash(datos_usuario.password),
+        rol_id=datos_usuario.rol_id,
     )
     session.add(nuevo_usuario)
     session.commit()
@@ -60,8 +53,7 @@ async def crear_empleado_admin(datos_usuario: UsuarioCreate, session: SessionDeD
 
 @router.get("/usuarios/me", response_model=UsuarioResponse, status_code=status.HTTP_200_OK)
 async def obtener_perfil_actual(session: SessionDeDependencia, token: Token_Dependencia):
-    usuario = session.exec(select(Usuario).where(
-        Usuario.id == token['id'])).first()
+    usuario = session.exec(select(Usuario).where(Usuario.id_usuario == token["id"])).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return usuario
