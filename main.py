@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from config.db import crear_db_y_tablas
+from config.segurity import validate_token_config
 from routers.auth_router import router as auth_router
 from routers.categoria_router import router as categoria_router
 from routers.datos_facturacion_router import router as datos_facturacion_router
@@ -29,6 +30,7 @@ import models.venta
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_token_config()
     crear_db_y_tablas()
     yield
 

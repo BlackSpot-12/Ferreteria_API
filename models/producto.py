@@ -52,3 +52,22 @@ class ProductoUpdate(SQLModel):
     fotografia_url: Optional[str] = Field(default=None, max_length=255)
     categoria_id: Optional[int] = Field(default=None)
     ubicacion_id: Optional[int] = Field(default=None)
+
+
+class ProductoCatalogo(SQLModel):
+    id_producto: int
+    codigo: str
+    nombre: str
+    marca: Optional[str]
+    medida_presentacion: Optional[str]
+    precio_venta: Decimal
+    fotografia_url: Optional[str]
+
+
+class ProductoBusquedaEmpleado(ProductoCatalogo):
+    stock_actual: int
+    stock_minimo: int
+    categoria: str
+    pasillo: str
+    estante: str
+    nivel: str

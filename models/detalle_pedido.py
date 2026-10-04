@@ -12,19 +12,3 @@ class DetallePedido(SQLModel, table=True):
     cantidad: int = Field(nullable=False)
     precio_unitario: Decimal = Field(nullable=False, max_digits=10, decimal_places=2)
     subtotal: Decimal = Field(nullable=False, max_digits=10, decimal_places=2)
-
-
-class DetallePedidoCreate(SQLModel):
-    pedido_id: int = Field(nullable=False)
-    producto_id: int = Field(nullable=False)
-    cantidad: int = Field(nullable=False)
-    precio_unitario: Decimal = Field(nullable=False, max_digits=10, decimal_places=2)
-    subtotal: Decimal = Field(nullable=False, max_digits=10, decimal_places=2)
-
-
-class DetallePedidoUpdate(SQLModel):
-    pedido_id: Optional[int] = Field(default=None)
-    producto_id: Optional[int] = Field(default=None)
-    cantidad: Optional[int] = Field(default=None)
-    precio_unitario: Optional[Decimal] = Field(default=None, max_digits=10, decimal_places=2)
-    subtotal: Optional[Decimal] = Field(default=None, max_digits=10, decimal_places=2)
