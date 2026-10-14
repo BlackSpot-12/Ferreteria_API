@@ -28,6 +28,7 @@ from routers.detalle_pedido_router import listar_detalles_pedido
 from routers.pedido_router import (
     actualizar_estado_pedido,
     crear_pedido,
+    listar_detalles_pedido as listar_detalles_pedido_anidado,
     listar_pedidos,
     obtener_pedido,
 )
@@ -265,6 +266,30 @@ class SprintThreeFourTests(unittest.TestCase):
         self.assertEqual(order_one.usuario_id, 12)
         self.assertEqual(order_one.total_pedido, Decimal("200.00"))
         self.assertEqual(order_two.usuario_id, 13)
+
+        details_session = Session(self.engine, expire_on_commit=False)
+        details = asyncio.run(
+            listar_detalles_pedido(
+                order_one.id_pedido,
+                details_session,
+                {"id": 12, "id_rol": 3},
+            )
+        )
+        details_session.close()
+        self.assertEqual(details[0].producto_nombre, "Martillo")
+        self.assertEqual(details[0].producto_codigo, "MART-01")
+
+        nested_details_session = Session(self.engine, expire_on_commit=False)
+        nested_details = asyncio.run(
+            listar_detalles_pedido_anidado(
+                order_one.id_pedido,
+                nested_details_session,
+                {"id": 12, "id_rol": 3},
+            )
+        )
+        nested_details_session.close()
+        self.assertEqual(nested_details[0].producto_nombre, "Martillo")
+        self.assertEqual(nested_details[0].producto_codigo, "MART-01")
 
         order_session = Session(self.engine, expire_on_commit=False)
         customer_orders = asyncio.run(

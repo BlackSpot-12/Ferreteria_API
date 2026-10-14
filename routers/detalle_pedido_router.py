@@ -5,6 +5,7 @@ from config.segurity_Dependencia import Token_Dependencia
 from config.session_Dependencia import SessionDeDependencia
 from models.detalle_pedido import DetallePedido
 from models.pedido import Pedido, PedidoDetalleResponse
+from models.producto import Producto
 
 router = APIRouter()
 ROLES_GESTION_PEDIDOS = (1, 2)
@@ -33,8 +34,19 @@ async def listar_detalles_pedido(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tiene permisos para consultar detalles de pedidos",
         )
-    return session.exec(
-        select(DetallePedido)
+    detalles = session.exec(
+        select(DetallePedido, Producto)
+        .join(Producto, Producto.id_producto == DetallePedido.producto_id)
         .where(DetallePedido.pedido_id == pedido_id)
         .order_by(DetallePedido.id_detalle_pedido)
     ).all()
+    return [
+        PedidoDetalleResponse.model_validate(
+            {
+                **detalle.model_dump(),
+                "producto_nombre": producto.nombre,
+                "producto_codigo": producto.codigo,
+            }
+        )
+        for detalle, producto in detalles
+    ]

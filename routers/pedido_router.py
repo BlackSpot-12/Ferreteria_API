@@ -219,8 +219,18 @@ async def listar_detalles_pedido(
             detail="No tiene permisos para consultar detalles de pedidos",
         )
     detalles = session.exec(
-        select(DetallePedido)
+        select(DetallePedido, Producto)
+        .join(Producto, Producto.id_producto == DetallePedido.producto_id)
         .where(DetallePedido.pedido_id == pedido_id)
         .order_by(DetallePedido.id_detalle_pedido)
     ).all()
-    return detalles
+    return [
+        PedidoDetalleResponse.model_validate(
+            {
+                **detalle.model_dump(),
+                "producto_nombre": producto.nombre,
+                "producto_codigo": producto.codigo,
+            }
+        )
+        for detalle, producto in detalles
+    ]

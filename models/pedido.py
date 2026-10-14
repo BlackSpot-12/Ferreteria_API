@@ -44,6 +44,8 @@ class PedidoDetalleResponse(SQLModel):
     id_detalle_pedido: int
     pedido_id: int
     producto_id: int
+    producto_nombre: str
+    producto_codigo: str
     cantidad: int
     precio_unitario: Decimal
     subtotal: Decimal
