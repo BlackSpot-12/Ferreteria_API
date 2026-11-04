@@ -10,6 +10,10 @@ class DatosFacturacion(SQLModel, table=True):
     tipo_cliente: str = Field(nullable=False, max_length=20)
     nombre_razon_social: str = Field(nullable=False, max_length=150)
     numero_documento: str = Field(nullable=False, max_length=50)
+    correo: str = Field(nullable=False, max_length=150)
+    telefono: str = Field(nullable=False, max_length=30)
+    direccion: str = Field(nullable=False, max_length=255)
+    metodo_pago: str = Field(nullable=False, max_length=20)
 
 
 class DatosFacturacionCreate(SQLModel):
@@ -17,6 +21,10 @@ class DatosFacturacionCreate(SQLModel):
     tipo_cliente: str = Field(nullable=False, max_length=20)
     nombre_razon_social: str = Field(nullable=False, max_length=150)
     numero_documento: str = Field(nullable=False, max_length=50)
+    correo: str = Field(nullable=False, max_length=150)
+    telefono: str = Field(nullable=False, max_length=30)
+    direccion: str = Field(nullable=False, max_length=255)
+    metodo_pago: str = Field(nullable=False, max_length=20)
 
 
 class DatosFacturacionUpdate(SQLModel):
@@ -24,3 +32,7 @@ class DatosFacturacionUpdate(SQLModel):
     tipo_cliente: Optional[str] = Field(default=None, max_length=20)
     nombre_razon_social: Optional[str] = Field(default=None, max_length=150)
     numero_documento: Optional[str] = Field(default=None, max_length=50)
+    correo: Optional[str] = Field(default=None, max_length=150)
+    telefono: Optional[str] = Field(default=None, max_length=30)
+    direccion: Optional[str] = Field(default=None, max_length=255)
+    metodo_pago: Optional[str] = Field(default=None, max_length=20)

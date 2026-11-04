@@ -20,12 +20,19 @@ async def listar_detalles_venta(
     session: SessionDeDependencia,
     token: Token_Dependencia,
 ):
-    if token["id_rol"] not in (1, 2):
+    if token["id_rol"] not in (1, 2, 3):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo empleados y propietarios pueden consultar detalles de venta",
+            detail="No tiene permisos para consultar detalles de esta venta",
         )
-    if session.get(Venta, venta_id) is None:
+    venta = session.get(Venta, venta_id)
+    if venta is None or (
+        (token["id_rol"] == 2 and venta.usuario_id != token["id"])
+        or (
+            token["id_rol"] == 3
+            and venta.cliente_usuario_id != token["id"]
+        )
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Venta no encontrada",

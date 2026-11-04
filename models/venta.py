@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, EmailStr
 from sqlmodel import Field, SQLModel
 
 
@@ -10,9 +10,19 @@ class Venta(SQLModel, table=True):
     __tablename__ = "venta"
     id_venta: Optional[int] = Field(default=None, primary_key=True)
     usuario_id: int = Field(nullable=False, foreign_key="Usuario.id_usuario")
+    cliente_usuario_id: Optional[int] = Field(
+        default=None,
+        foreign_key="Usuario.id_usuario",
+    )
     fecha_hora: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+    canal: str = Field(default="POS", max_length=20)
+    pedido_id: Optional[int] = Field(
+        default=None,
+        foreign_key="pedido.id_pedido",
+        unique=True,
     )
     subtotal: Decimal = Field(nullable=False, max_digits=10, decimal_places=2)
     iva: Decimal = Field(nullable=False, max_digits=10, decimal_places=2)
@@ -46,6 +56,10 @@ class FacturaDatosCreate(SQLModel):
     tipo_cliente: Literal["Natural", "Juridico"]
     nombre_razon_social: str = Field(min_length=1, max_length=150)
     numero_documento: str = Field(min_length=1, max_length=50)
+    correo: EmailStr
+    telefono: str = Field(min_length=7, max_length=30)
+    direccion: str = Field(min_length=1, max_length=255)
+    metodo_pago: Literal["Efectivo", "Tarjeta", "Transferencia"]
 
 
 class VentaPOSCreate(SQLModel):
@@ -89,6 +103,10 @@ class FacturaResponse(SQLModel):
     tipo_cliente: Literal["Natural", "Juridico"]
     nombre_razon_social: str
     numero_documento: str
+    correo: str
+    telefono: str
+    direccion: str
+    metodo_pago: str
     detalles: list[VentaDetalleResponse]
     subtotal: Decimal
     iva_porcentaje: Decimal
