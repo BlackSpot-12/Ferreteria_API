@@ -4,17 +4,21 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Literal
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from config.segurity_Dependencia import Token_Dependencia
 from config.session_Dependencia import SessionDeDependencia
+from lib.email_tasks import enviar_factura_por_correo
+from models.email import InvoiceEmailAudit
+from lib.guest_order_lookup import CODIGO_ACCESO_LONGITUD, consumir_intento_consulta
 from models.datos_facturacion import DatosFacturacion
 from models.detalle_venta import DetalleVenta
 from models.pedido import Pedido
 from models.producto import Producto
+from models.security import PaymentRecord
 from models.usuario import Usuario
 from models.venta import (
     FacturaEmisor,
@@ -143,6 +147,7 @@ async def procesar_venta(
     payload: VentaPOSCreate,
     session: SessionDeDependencia,
     token: Token_Dependencia,
+    background_tasks: BackgroundTasks = None,
 ):
     usuario_id = token.get("id")
     if not isinstance(usuario_id, int):
@@ -271,6 +276,15 @@ async def procesar_venta(
                 metodo_pago=payload.datos_facturacion.metodo_pago,
             )
             session.add(facturacion)
+            session.add(
+                PaymentRecord(
+                    venta_id=venta.id_venta,
+                    usuario_id=usuario_id,
+                    metodo_pago=payload.datos_facturacion.metodo_pago,
+                    referencia=payload.datos_facturacion.referencia_pago,
+                    monto=total,
+                )
+            )
             session.flush()
     except IntegrityError as exc:
         session.rollback()
@@ -280,6 +294,8 @@ async def procesar_venta(
         ) from exc
 
     session.refresh(venta)
+    if background_tasks is not None:
+        background_tasks.add_task(enviar_factura_por_correo, venta.id_venta)
     return VentaPOSResponse(
         id_venta=venta.id_venta,
         usuario_id=venta.usuario_id,
@@ -292,6 +308,51 @@ async def procesar_venta(
             for detalle, producto in zip(lineas_creadas, productos_linea)
         ],
     )
+
+
+@router.post(
+    "/ventas/{venta_id}/factura/email",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def reenviar_factura_por_correo(
+    venta_id: int,
+    background_tasks: BackgroundTasks,
+    session: SessionDeDependencia,
+    token: Token_Dependencia,
+):
+    if token.get("id_rol") not in ROLES_POS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo empleados y propietarios pueden enviar facturas",
+        )
+    sale = session.get(Venta, venta_id)
+    if sale is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Venta no encontrada",
+        )
+    has_invoice = session.exec(
+        select(DatosFacturacion).where(DatosFacturacion.venta_id == venta_id)
+    ).first()
+    if has_invoice is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No hay datos de facturación para esta venta",
+        )
+    audit = InvoiceEmailAudit(
+        venta_id=venta_id,
+        requested_by=token["id"],
+    )
+    session.add(audit)
+    session.commit()
+    session.refresh(audit)
+    background_tasks.add_task(
+        enviar_factura_por_correo,
+        venta_id,
+        True,
+        audit.id,
+    )
+    return {"detail": "Se solicitó el reenvío de la factura"}
 
 
 @router.get("/ventas/{venta_id}/factura", response_model=FacturaResponse)
@@ -379,8 +440,14 @@ def _factura_de_venta(venta: Venta, session) -> FacturaResponse:
 async def obtener_factura_invitado(
     session: SessionDeDependencia,
     codigo_acceso: str = Header(alias="X-Order-Access-Code"),
+    request: Request = None,
 ):
-    if len(codigo_acceso) < 24 or len(codigo_acceso) > 128:
+    consumir_intento_consulta(session, request)
+    if (
+        len(codigo_acceso) != CODIGO_ACCESO_LONGITUD
+        or not codigo_acceso.isascii()
+        or not codigo_acceso.replace("-", "").replace("_", "").isalnum()
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comprobante no encontrado",

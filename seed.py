@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
@@ -6,6 +7,7 @@ import main  # noqa: F401 - registra todos los modelos en SQLModel.metadata
 from config.db import engine
 from lib.pwd import get_password_hash
 from models.categoria import Categoria
+from models.email import UserEmailVerification
 from models.producto import Producto
 from models.rol import Rol
 from models.ubicacion import Ubicacion
@@ -162,13 +164,20 @@ def poblar_datos(session: Session, passwords: dict[str, str]) -> dict[str, int]:
         ).first()
         if existing is not None:
             continue
+        user = Usuario(
+            Nombres=first_name,
+            apellidos=last_name,
+            correo=email,
+            password_hash=get_password_hash(passwords[password_env]),
+            rol_id=role_id,
+        )
+        session.add(user)
+        session.flush()
         session.add(
-            Usuario(
-                Nombres=first_name,
-                apellidos=last_name,
-                correo=email,
-                password_hash=get_password_hash(passwords[password_env]),
-                rol_id=role_id,
+            UserEmailVerification(
+                usuario_id=user.id_usuario,
+                verificado=True,
+                verified_at=datetime.now(timezone.utc),
             )
         )
         counts["usuarios"] += 1

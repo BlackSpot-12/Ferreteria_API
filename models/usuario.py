@@ -18,7 +18,7 @@ class UsuarioCreate(SQLModel):
     Nombres: str = Field(nullable=False, max_length=100)
     apellidos: str = Field(nullable=False, max_length=100)
     correo: EmailStr = Field(nullable=False, max_length=150)
-    password: str = Field(nullable=False, max_length=255)
+    password: str = Field(nullable=False, min_length=8, max_length=255)
     rol_id: int = Field(nullable=False)
 
 
@@ -26,7 +26,7 @@ class UsuarioRegistroCliente(SQLModel):
     Nombres: str = Field(nullable=False, max_length=100)
     apellidos: str = Field(nullable=False, max_length=100)
     correo: EmailStr = Field(nullable=False, max_length=150)
-    password: str = Field(nullable=False, max_length=255)
+    password: str = Field(nullable=False, min_length=8, max_length=255)
 
 
 class UsuarioResponse(SQLModel):
@@ -35,3 +35,16 @@ class UsuarioResponse(SQLModel):
     apellidos: str
     correo: EmailStr
     rol_id: int
+
+
+class UsuarioAdminResponse(SQLModel):
+    id_usuario: int
+    Nombres: str
+    apellidos: str
+    correo: EmailStr
+    rol_id: int
+    activo: bool
+
+
+class UsuarioEstadoUpdate(SQLModel):
+    activo: bool

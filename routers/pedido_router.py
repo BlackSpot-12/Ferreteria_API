@@ -1,19 +1,26 @@
 import hashlib
+import os
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from config.segurity_Dependencia import Token_Dependencia
 from config.session_Dependencia import SessionDeDependencia
+from lib.email_tasks import enviar_factura_por_correo, enviar_recibo_pedido
+from lib.guest_order_lookup import (
+    CODIGO_ACCESO_LONGITUD,
+    consumir_intento_consulta,
+)
 from models.configuracion import ConfiguracionNegocio
 from models.datos_facturacion import DatosFacturacion
 from models.detalle_pedido import DetallePedido
 from models.detalle_venta import DetalleVenta
+from models.email import UserEmailVerification
 from models.pedido import (
     DatosPedidoCreate,
     EstadoPedido,
@@ -29,6 +36,7 @@ from models.pedido import (
     PedidoUpdate,
 )
 from models.producto import Producto
+from models.security import PaymentRecord
 from models.venta import Venta, VentaDetalleResponse, VentaPOSResponse
 
 router = APIRouter()
@@ -119,7 +127,7 @@ def _create_order(
         quantities[item.producto_id] = (
             quantities.get(item.producto_id, 0) + item.cantidad
         )
-    access_code = secrets.token_urlsafe(24) if user_id is None else None
+    access_code = secrets.token_urlsafe(9) if user_id is None else None
     try:
         with session.begin():
             products = session.exec(
@@ -225,15 +233,58 @@ def _sales_by_customer(session, user_ids: set[int]) -> dict[int, Decimal]:
     response_model=list[PedidoResponse],
     status_code=status.HTTP_200_OK,
 )
-async def listar_pedidos(session: SessionDeDependencia, token: Token_Dependencia):
-    orders = session.exec(select(Pedido)).all()
+async def listar_pedidos(
+    session: SessionDeDependencia,
+    token: Token_Dependencia,
+    estado: EstadoPedido | None = None,
+    fecha_inicio: date | None = None,
+    fecha_fin: date | None = None,
+    cliente: str | None = None,
+):
+    if cliente is not None:
+        cliente = cliente.strip()
+        if not 1 <= len(cliente) <= 150:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="cliente debe contener entre 1 y 150 caracteres",
+            )
+    if fecha_inicio is not None and fecha_fin is not None and fecha_inicio > fecha_fin:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="fecha_inicio no puede ser posterior a fecha_fin",
+        )
+    query = select(Pedido)
+    if estado is not None:
+        query = query.where(Pedido.estado == estado)
+    if fecha_inicio is not None:
+        query = query.where(
+            Pedido.fecha_hora
+            >= datetime.combine(fecha_inicio, datetime.min.time(), tzinfo=timezone.utc)
+        )
+    if fecha_fin is not None:
+        query = query.where(
+            Pedido.fecha_hora
+            < datetime.combine(
+                fecha_fin + timedelta(days=1),
+                datetime.min.time(),
+                tzinfo=timezone.utc,
+            )
+        )
+    if cliente is not None:
+        search = f"%{cliente}%"
+        query = query.where(
+            (Pedido.nombre_cliente.ilike(search))
+            | (Pedido.correo_cliente.ilike(search))
+            | (Pedido.numero_documento.ilike(search))
+        )
     if token["id_rol"] == 3:
-        orders = [order for order in orders if order.usuario_id == token["id"]]
+        query = query.where(Pedido.usuario_id == token["id"])
     elif token["id_rol"] not in ROLES_GESTION_PEDIDOS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tiene permisos para consultar pedidos",
         )
+    orders = session.exec(query.order_by(Pedido.id_pedido)).all()
 
     user_ids = {order.usuario_id for order in orders if order.usuario_id is not None}
     spendings = _sales_by_customer(session, user_ids)
@@ -285,6 +336,7 @@ async def crear_pedido(
     payload: PedidoCreate,
     session: SessionDeDependencia,
     token: Token_Dependencia,
+    background_tasks: BackgroundTasks = None,
 ):
     user_id = token.get("id")
     if (
@@ -295,12 +347,25 @@ async def crear_pedido(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tiene permisos para crear pedidos",
         )
+    if (
+        token["id_rol"] == 3
+        and os.getenv("REQUIRE_EMAIL_VERIFICATION", "0").strip().lower()
+        in {"1", "true", "yes", "on"}
+    ):
+        verification = session.get(UserEmailVerification, user_id)
+        if verification is not None and not verification.verificado:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Verifica tu correo antes de crear pedidos",
+            )
     pedido, _ = _create_order(
         payload.items,
         payload.datos_cliente,
         user_id,
         session,
     )
+    if background_tasks is not None:
+        background_tasks.add_task(enviar_recibo_pedido, pedido.id_pedido)
     return _pedido_response(
         pedido,
         details=_pedido_detalles(session, pedido.id_pedido),
@@ -315,6 +380,7 @@ async def crear_pedido(
 async def crear_pedido_invitado(
     payload: PedidoInvitadoCreate,
     session: SessionDeDependencia,
+    background_tasks: BackgroundTasks = None,
 ):
     pedido, access_code = _create_order(
         payload.items,
@@ -324,6 +390,12 @@ async def crear_pedido_invitado(
     )
     if access_code is None:
         raise RuntimeError("No se generó un código de acceso para el pedido invitado")
+    if background_tasks is not None:
+        background_tasks.add_task(
+            enviar_recibo_pedido,
+            pedido.id_pedido,
+            access_code,
+        )
     return PedidoInvitadoResponse(
         pedido=_pedido_response(pedido),
         codigo_acceso=access_code,
@@ -340,8 +412,14 @@ async def crear_pedido_invitado(
 async def consultar_pedido_invitado(
     session: SessionDeDependencia,
     codigo_acceso: str = Header(alias="X-Order-Access-Code"),
+    request: Request = None,
 ):
-    if len(codigo_acceso) < 24 or len(codigo_acceso) > 128:
+    consumir_intento_consulta(session, request)
+    if (
+        len(codigo_acceso) != CODIGO_ACCESO_LONGITUD
+        or not codigo_acceso.isascii()
+        or not codigo_acceso.replace("-", "").replace("_", "").isalnum()
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comprobante no encontrado",
@@ -415,6 +493,7 @@ async def pagar_y_entregar_pedido(
     payload: PagoPedidoCreate,
     session: SessionDeDependencia,
     token: Token_Dependencia,
+    background_tasks: BackgroundTasks = None,
 ):
     if token.get("id_rol") not in ROLES_GESTION_PEDIDOS:
         raise HTTPException(
@@ -525,6 +604,15 @@ async def pagar_y_entregar_pedido(
                     metodo_pago=payload.metodo_pago,
                 )
             )
+            session.add(
+                PaymentRecord(
+                    venta_id=sale.id_venta,
+                    usuario_id=token["id"],
+                    metodo_pago=payload.metodo_pago,
+                    referencia=payload.referencia_pago,
+                    monto=sale.total_pagar,
+                )
+            )
             pedido.estado = "Entregado"
             session.add(pedido)
             session.flush()
@@ -535,6 +623,8 @@ async def pagar_y_entregar_pedido(
             detail="No se pudo cobrar el pedido por una restricción de integridad",
         ) from exc
 
+    if background_tasks is not None:
+        background_tasks.add_task(enviar_factura_por_correo, sale.id_venta)
     return VentaPOSResponse(
         id_venta=sale.id_venta,
         usuario_id=sale.usuario_id,

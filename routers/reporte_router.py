@@ -2,7 +2,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import select
 
 from config.segurity_Dependencia import Token_Dependencia
@@ -138,8 +138,14 @@ async def reporte_ventas(
 async def reporte_inventario(
     session: SessionDeDependencia,
     token: Token_Dependencia,
+    productos_limit: int = 10,
 ):
     _require_owner(token)
+    if not 1 <= productos_limit <= 50:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="productos_limit debe estar entre 1 y 50",
+        )
 
     totales = session.exec(
         select(
@@ -176,11 +182,85 @@ async def reporte_inventario(
         .order_by(Categoria.nombre)
     ).all()
 
+    reponer = session.exec(
+        select(
+            Producto.id_producto,
+            Producto.codigo,
+            Producto.nombre,
+            Categoria.nombre,
+            Producto.stock_actual,
+            Producto.stock_minimo,
+            Producto.stock_actual * Producto.precio_compra,
+            Producto.stock_actual * Producto.precio_venta,
+        )
+        .join(Categoria, Categoria.id_categoria == Producto.categoria_id)
+        .where(
+            Producto.estado.is_(True),
+            or_(
+                Producto.stock_actual <= Producto.stock_minimo,
+                Producto.stock_actual <= 0,
+            ),
+        )
+        .order_by(Producto.stock_actual, Producto.nombre)
+    ).all()
+
+    alto_valor = session.exec(
+        select(
+            Producto.id_producto,
+            Producto.codigo,
+            Producto.nombre,
+            Categoria.nombre,
+            Producto.stock_actual,
+            Producto.stock_minimo,
+            Producto.stock_actual * Producto.precio_compra,
+            Producto.stock_actual * Producto.precio_venta,
+        )
+        .join(Categoria, Categoria.id_categoria == Producto.categoria_id)
+        .where(Producto.estado.is_(True))
+        .order_by(
+            (Producto.stock_actual * Producto.precio_venta).desc(),
+            Producto.nombre,
+        )
+        .limit(productos_limit)
+    ).all()
+
+    productos_reponer = [
+        {
+            "producto_id": int(row[0]),
+            "codigo": row[1],
+            "nombre": row[2],
+            "categoria": row[3],
+            "stock_actual": int(row[4]),
+            "stock_minimo": int(row[5]),
+            "valor_compra": Decimal(str(row[6] or 0)),
+            "valor_venta": Decimal(str(row[7] or 0)),
+        }
+        for row in reponer
+    ]
+
     return {
         "total_productos": int(totales[0] or 0),
         "unidades_disponibles": int(totales[1] or 0),
         "valor_inventario_compra": Decimal(str(totales[2] or 0)),
         "valor_inventario_venta": Decimal(str(totales[3] or 0)),
+        "productos_bajo_stock": sum(
+            1 for row in reponer if int(row[4]) > 0
+        ),
+        "productos_sin_stock": sum(1 for row in reponer if int(row[4]) <= 0),
+        "productos_reponer": productos_reponer,
+        "productos_mayor_valor": [
+            {
+                "producto_id": int(row[0]),
+                "codigo": row[1],
+                "nombre": row[2],
+                "categoria": row[3],
+                "stock_actual": int(row[4]),
+                "stock_minimo": int(row[5]),
+                "valor_compra": Decimal(str(row[6] or 0)),
+                "valor_venta": Decimal(str(row[7] or 0)),
+            }
+            for row in alto_valor
+        ],
         "por_categoria": [
             {
                 "categoria": row[0],

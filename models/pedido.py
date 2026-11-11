@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import EmailStr
+from pydantic import EmailStr, model_validator
 from pydantic import ConfigDict
 from sqlmodel import Field, SQLModel
 
@@ -107,6 +107,17 @@ class PagoPedidoCreate(SQLModel):
     model_config = ConfigDict(extra="forbid")
 
     metodo_pago: Literal["Efectivo", "Tarjeta", "Transferencia"]
+    referencia_pago: str | None = Field(default=None, min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def validar_referencia(self):
+        if self.referencia_pago is not None:
+            self.referencia_pago = self.referencia_pago.strip()
+            if not self.referencia_pago:
+                raise ValueError("referencia_pago no puede estar vacía")
+            if self.metodo_pago == "Efectivo":
+                raise ValueError("referencia_pago solo aplica a pagos no monetarios")
+        return self
 
 
 class PedidoDetalleResponse(SQLModel):

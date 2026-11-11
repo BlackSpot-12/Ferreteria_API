@@ -9,6 +9,7 @@ import jwt
 from sqlmodel import Session
 
 from config.db import engine
+from models.security import UserAccess
 from models.usuario import Usuario
 
 load_dotenv()
@@ -68,7 +69,17 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 
         with Session(engine) as session:
             user = session.get(Usuario, user_id)
+            access = session.get(UserAccess, user_id)
         if user is None:
+            raise credential_exception
+        token_version = payload.get("token_version", 0)
+        if (
+            not isinstance(token_version, int)
+            or isinstance(token_version, bool)
+            or token_version < 0
+            or (access is not None and not access.activo)
+            or token_version != (access.token_version if access is not None else 0)
+        ):
             raise credential_exception
 
         return {

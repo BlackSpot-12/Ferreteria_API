@@ -13,6 +13,7 @@ from routers.datos_facturacion_router import router as datos_facturacion_router
 from routers.detalle_pedido_router import router as detalle_pedido_router
 from routers.detalle_venta_router import router as detalle_venta_router
 from routers.pedido_router import router as pedido_router
+from routers.pago_router import router as pago_router
 from routers.producto_router import router as producto_router
 from routers.reporte_router import router as reporte_router
 from routers.rol_router import router as rol_router
@@ -25,9 +26,11 @@ import models.configuracion
 import models.datos_facturacion
 import models.detalle_pedido
 import models.detalle_venta
+import models.email
 import models.pedido
 import models.producto
 import models.rol
+import models.security
 import models.ubicacion
 import models.usuario
 import models.venta
@@ -69,5 +72,6 @@ app.include_router(venta_router, tags=["Ventas"])
 app.include_router(detalle_venta_router, tags=["Detalle Venta"])
 app.include_router(datos_facturacion_router, tags=["Datos de Facturación"])
 app.include_router(pedido_router, tags=["Pedidos"])
+app.include_router(pago_router)
 app.include_router(detalle_pedido_router, tags=["Detalle Pedido"])
 app.include_router(reporte_router)

@@ -15,7 +15,13 @@ DATABASE_URL = (
     f"mysql+pymysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 )
 
-engine = create_engine(DATABASE_URL, echo=True, pool_pre_ping=True)
+SQL_ECHO = os.getenv("SQL_ECHO", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+engine = create_engine(DATABASE_URL, echo=SQL_ECHO, pool_pre_ping=True)
 
 
 def crear_db_y_tablas():

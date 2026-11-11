@@ -56,6 +56,14 @@ def _producto_empleado(producto, categoria, ubicacion):
     )
 
 
+def _require_owner(token: dict, action: str) -> None:
+    if token.get("id_rol") != 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Solo el propietario puede {action} productos",
+        )
+
+
 @router.get(
     "/catalogo/productos",
     response_model=list[ProductoCatalogo],
@@ -110,14 +118,12 @@ async def buscar_productos_empleado(
 
 @router.get("/productos", response_model=list[Producto], status_code=status.HTTP_200_OK)
 async def listar_productos(session: SessionDeDependencia, token: Token_Dependencia):
-    if token["id_rol"] not in (1, 2):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para consultar productos")
+    _require_owner(token, "consultar")
     return session.exec(select(Producto).order_by(Producto.id_producto)).all()
 
 @router.get("/productos/{producto_id}", response_model=Producto, status_code=status.HTTP_200_OK)
 async def obtener_producto(producto_id: int, session: SessionDeDependencia, token: Token_Dependencia):
-    if token["id_rol"] not in (1, 2):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para consultar productos")
+    _require_owner(token, "consultar")
     producto = session.get(Producto, producto_id)
     if not producto:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
@@ -125,8 +131,7 @@ async def obtener_producto(producto_id: int, session: SessionDeDependencia, toke
 
 @router.post("/productos", response_model=Producto, status_code=status.HTTP_201_CREATED)
 async def crear_producto(payload: ProductoCreate, session: SessionDeDependencia, token: Token_Dependencia):
-    if token["id_rol"] not in (1, 2):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para crear productos")
+    _require_owner(token, "crear")
     if session.get(Categoria, payload.categoria_id) is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La categor?a indicada no existe")
     if session.get(Ubicacion, payload.ubicacion_id) is None:
@@ -141,8 +146,7 @@ async def crear_producto(payload: ProductoCreate, session: SessionDeDependencia,
 
 @router.put("/productos/{producto_id}", response_model=Producto, status_code=status.HTTP_200_OK)
 async def actualizar_producto(producto_id: int, payload: ProductoUpdate, session: SessionDeDependencia, token: Token_Dependencia):
-    if token["id_rol"] not in (1, 2):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para editar productos")
+    _require_owner(token, "editar")
     producto = session.get(Producto, producto_id)
     if not producto:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
@@ -159,11 +163,11 @@ async def actualizar_producto(producto_id: int, payload: ProductoUpdate, session
 
 @router.delete("/productos/{producto_id}", status_code=status.HTTP_200_OK)
 async def eliminar_producto(producto_id: int, session: SessionDeDependencia, token: Token_Dependencia):
-    if token["id_rol"] not in (1, 2):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para eliminar productos")
+    _require_owner(token, "inactivar")
     producto = session.get(Producto, producto_id)
     if not producto:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
-    session.delete(producto)
+    producto.estado = False
+    session.add(producto)
     session.commit()
-    return {"detail": "Producto eliminado"}
+    return {"detail": "Producto inactivado", "id_producto": producto_id, "estado": False}

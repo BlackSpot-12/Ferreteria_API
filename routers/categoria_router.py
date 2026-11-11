@@ -24,8 +24,8 @@ async def obtener_categoria(categoria_id: int, session: SessionDeDependencia, to
 
 @router.post("/categorias", response_model=Categoria, status_code=status.HTTP_201_CREATED)
 async def crear_categoria(payload: CategoriaCreate, session: SessionDeDependencia, token: Token_Dependencia):
-    if token["id_rol"] not in (1, 2):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para crear categor?as")
+    if token["id_rol"] != 1:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo el propietario puede crear categorías")
     if session.exec(select(Categoria).where(Categoria.nombre == payload.nombre)).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La categor?a ya existe")
     categoria = Categoria(**payload.model_dump())
@@ -36,8 +36,8 @@ async def crear_categoria(payload: CategoriaCreate, session: SessionDeDependenci
 
 @router.put("/categorias/{categoria_id}", response_model=Categoria, status_code=status.HTTP_200_OK)
 async def actualizar_categoria(categoria_id: int, payload: CategoriaUpdate, session: SessionDeDependencia, token: Token_Dependencia):
-    if token["id_rol"] not in (1, 2):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para editar categor?as")
+    if token["id_rol"] != 1:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo el propietario puede editar categorías")
     categoria = session.get(Categoria, categoria_id)
     if not categoria:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categor?a no encontrada")
@@ -50,8 +50,8 @@ async def actualizar_categoria(categoria_id: int, payload: CategoriaUpdate, sess
 
 @router.delete("/categorias/{categoria_id}", status_code=status.HTTP_200_OK)
 async def eliminar_categoria(categoria_id: int, session: SessionDeDependencia, token: Token_Dependencia):
-    if token["id_rol"] not in (1, 2):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para eliminar categor?as")
+    if token["id_rol"] != 1:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo el propietario puede eliminar categorías")
     categoria = session.get(Categoria, categoria_id)
     if not categoria:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categor?a no encontrada")
